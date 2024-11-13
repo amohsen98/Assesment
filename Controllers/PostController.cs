@@ -47,6 +47,19 @@ namespace Assesment.Controllers
             return Ok(_mapper.Map<PostDTO>(post));
         }
 
+        // Get all posts for a specific user
+        [HttpGet("user/{userId}")]
+        public IActionResult GetPostsForUser(int userId)
+        {
+            var posts = _context.Posts.Where(p => p.UserID == userId).ToList();
+            if (posts == null)
+            {
+                return NotFound();
+            }
+            return Ok(posts);
+        }
+
+
         // POST: api/Post
         [HttpPost]
         public async Task<ActionResult<PostDTO>> CreatePost([FromBody] PostCreateDTO postCreateDTO)

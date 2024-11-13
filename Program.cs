@@ -23,6 +23,7 @@ namespace Assesment
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
 
+
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.
@@ -31,7 +32,9 @@ namespace Assesment
                 app.UseSwagger();
                 app.UseSwaggerUI();
             }
-
+            app.UseDefaultFiles();  // This serves index.html automatically
+            app.UseStaticFiles();
+            app.UseRouting();
             app.UseHttpsRedirection();
 
             app.UseAuthorization();
