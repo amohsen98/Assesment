@@ -3,12 +3,14 @@ using Assesment.DTO;
 using Assesment.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Net;
 
 namespace Assesment.Controllers
 {
+
     [Route("api/[controller]")]
     [ApiController]
-    public class UserProfileController : Controller
+    public class UserProfileController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
 
@@ -17,54 +19,135 @@ namespace Assesment.Controllers
             _context = context;
         }
 
+        // GET: api/UserProfile
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<UserProfileDTO>>> GetAllUsers()
+        public async Task<ActionResult<IEnumerable<UserProfile>>> GetUserProfiles()
         {
-            var users = await _context.UserProfiles.ToListAsync();
-            return Ok(users);
+            var userProfiles = await _context.UserProfiles.ToListAsync();
+            return Ok(userProfiles); // Return the list of user profiles
         }
 
+        // GET: api/UserProfile/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<UserProfileDTO>> GetUserById(int id)
+        public async Task<ActionResult<UserProfile>> GetUserProfile(int id)
         {
-            var user = await _context.UserProfiles.FirstOrDefaultAsync(u => u.UserID == id);
-            if (user == null) return NotFound();
+            // Validate the ID
+            if (id <= 0)
+            {
+                return BadRequest("Invalid ID.");
+            }
 
-            return Ok(user);
+            var userProfile = await _context.UserProfiles.FindAsync(id);
+            if (userProfile == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(userProfile);
         }
 
+        // POST: api/UserProfile
         [HttpPost]
-        public async Task<ActionResult<UserProfileDTO>> CreateUser(UserProfileDTO dto)
+        public async Task<ActionResult<UserProfile>> CreateUserProfile([FromBody] UserProfile userProfile)
         {
-            var user = new UserProfile { /* Map dto properties */ };
-            _context.UserProfiles.Add(user);
-            await _context.SaveChangesAsync();
+            // Validate model state
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState); // Return validation errors
+            }
 
-            return CreatedAtAction(nameof(GetUserById), new { id = user.UserID }, dto);
+            // Sanitize input fields to avoid XSS (for text fields like FirstName, LastName, Email)
+            userProfile.FirstName = WebUtility.HtmlEncode(userProfile.FirstName);
+            userProfile.LastName = WebUtility.HtmlEncode(userProfile.LastName);
+            userProfile.Email = WebUtility.HtmlEncode(userProfile.Email); // Sanitize Email as well
+
+            // Add user profile to the context
+            _context.UserProfiles.Add(userProfile);
+
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+
+            return CreatedAtAction(nameof(GetUserProfile), new { id = userProfile.UserID }, userProfile);
         }
 
+        // PUT: api/UserProfile/5
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateUser(int id, UserProfileDTO dto)
+        public async Task<IActionResult> UpdateUserProfile(int id, [FromBody] UserProfile userProfile)
         {
-            if (id != dto.UserID) return BadRequest();
-            var user = await _context.UserProfiles.FindAsync(id);
-            if (user == null) return NotFound();
+            // Validate the ID and model state
+            if (id <= 0 || id != userProfile.UserID || !ModelState.IsValid)
+            {
+                return BadRequest("Invalid data provided.");
+            }
 
-            // Update fields
-            await _context.SaveChangesAsync();
-            return NoContent();
+            // Sanitize input fields
+            userProfile.FirstName = WebUtility.HtmlEncode(userProfile.FirstName);
+            userProfile.LastName = WebUtility.HtmlEncode(userProfile.LastName);
+            userProfile.Email = WebUtility.HtmlEncode(userProfile.Email);
+
+            // Check if the user profile exists
+            var existingProfile = await _context.UserProfiles.FindAsync(id);
+            if (existingProfile == null)
+            {
+                return NotFound();
+            }
+
+            _context.Entry(existingProfile).State = EntityState.Modified;
+
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!UserProfileExists(id))
+                {
+                    return NotFound();
+                }
+                else
+                {
+                    throw;
+                }
+            }
+
+            return NoContent(); // No content means success but nothing to return
         }
 
+        // DELETE: api/UserProfile/5
         [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteUser(int id)
+        public async Task<IActionResult> DeleteUserProfile(int id)
         {
-            var user = await _context.UserProfiles.FindAsync(id);
-            if (user == null) return NotFound();
+            // Validate the ID
+            if (id <= 0)
+            {
+                return BadRequest("Invalid ID.");
+            }
 
-            _context.UserProfiles.Remove(user);
+            // Retrieve the user profile from the database
+            var userProfile = await _context.UserProfiles.FindAsync(id);
+            if (userProfile == null)
+            {
+                return NotFound();
+            }
+
+            // Remove the profile from the context and save changes
+            _context.UserProfiles.Remove(userProfile);
             await _context.SaveChangesAsync();
-            return NoContent();
+
+            return NoContent(); // No content means the delete operation was successful
+        }
+
+        private bool UserProfileExists(int id)
+        {
+            return _context.UserProfiles.Any(e => e.UserID == id);
         }
     }
+
 }
 
